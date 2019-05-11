@@ -2,26 +2,34 @@
 # file: ent.py
 # vim:fileencoding=utf-8:fdm=marker:ft=python
 #
+# Modified on May 2019 by Corentin Rafflin <corentin.rafflin@eurecom.fr>.
 # Copyright © 2018 R.F. Smith <rsmith@xs4all.nl>.
 # SPDX-License-Identifier: MIT
-# Created: 2012-08-25T23:37:50+0200
-# Last modified: 2018-07-08T13:37:52+0200
 """
-Partial implementation of the ‘ent’ program by John "Random" Walker in Python.
+Updated version of the ‘ent’ python implementation by R.F. Smith which was a
+partial implementation of the ‘ent’ program by John "Random" Walker.
 
 See http://www.fourmilab.ch/random/ for the original.
+See https://github.com/rsmith-nl/ent for the partial implementation by R.F. Smith
 """
-
 from __future__ import division, print_function
 import argparse
 import math
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import multiprocessing
+import pickle
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import LabelEncoder, RobustScaler 
 
-__version__ = '0.7'
+__version__ = '1.0'
 PI = 3.14159265358979323846
+filename = "scaler_lb_clf.sav"
 
+bytescount = [str(i) for i in range(0,256)]
+tests = ['File_type','File_bytes','Entropy','Chi_square','Mean','Monte_Carlo_Pi','Serial_Correlation'] 
 
 def main(argv):
     """
@@ -30,15 +38,27 @@ def main(argv):
     Arguments:
         argv: Program options.
     """
+
+    #Passing arguments
     opts = argparse.ArgumentParser(prog='ent', description=__doc__)
-    opts.add_argument(
-        '-c', action='store_true', help="print occurrence counts"
-    )
+    opts.add_argument('-c', action='store_true', help="print byte occurrence counts")
     opts.add_argument('-t', action='store_true', help="terse output in CSV format")
+    opts.add_argument('-n', action='store_true', help="remove header when printing in CSV format")
+    opts.add_argument('-f', action='store_true', help="plot the histogram of the byte distribution")
+    opts.add_argument('-p', action='store_true', help="predict file type")
     opts.add_argument('-v', '--version', action='version', version=__version__)
     opts.add_argument("files", metavar='file', nargs='*', help="one or more files to process")
     args = opts.parse_args(argv)
+
+    #Checking the input format
+    if not(args.files):
+	    sys.stderr.write("Input error, see help : %s --help \n"%sys.argv[0])
+	    sys.exit(1)
+
     for fname in args.files:
+        extension = os.path.splitext(fname)[1][1:]
+        if len(extension)==0:
+            extension="unknown"
         data, cnts = readdata(fname)
         e = entropy(cnts)
         c = pearsonchisquare(cnts)
@@ -50,16 +70,31 @@ def main(argv):
             es = f"{scc:.6f}"
         except ValueError:
             es = 'undefined'
-        if args.t and args.c:
-            terseout(data, e, c, p, d, es, m, cnts)
-		elif args.t:
-			terseout(data, e, c, p, d, es, m)
-        elif args.c:
-			textout(data, e, c, p, d, es, m, cnts)
-		else:
-			textout(data, e, c, p, d, es, m)
+        if args.t: 
+            terseout(extension, data, e, c, p, d, es, m, cnts, args.c, not(args.n))
+       	else:
+       		textout(data, e, c, p, d, es, m, cnts, args.c)
+        if args.p:
+            predictType(extension, data, e, c, p, d, es, m, cnts)
+        if args.f:
+            plotHist(cnts)
+        
+def plotHist(cnts):
+    fig, ax = plt.subplots(1,1, figsize=(18,12))
+    ax.bar([i for i in range(len(cnts))], cnts, width=1.0, edgecolor='black')
+    ax.set_ylabel('Count', size=15)
+    ax.set_xlabel('Byte', size=15)
+    ax.set_title('Byte distribution', size=30)
+    plt.show()
 
-def terseout(data, e, chi2, p, d, scc, mc, cnts=''):
+def toFraction(data, cnts):
+    n = len(data)
+    bytesFraction = []
+    for byte in range(256):
+       bytesFraction.append(round(cnts[byte]/n,6))
+    return bytesFraction
+
+def terseout(extension, data, e, chi2, p, d, scc, mc, cnts, withOcurrence, withHeader):
     """
     Print the results in terse CSV.
 
@@ -71,27 +106,27 @@ def terseout(data, e, chi2, p, d, scc, mc, cnts=''):
         d: Percent distance of p from centre.
         scc: Serial correlation coefficient.
         mc: Monte Carlo approximation of π.
-		cnts: numpy array containing the occurance of each byte.
+       	cnts: numpy array containing the occurance of each byte.
     """
-	n = len(data)
+    n = len(data)
     m = data.mean()
-	
-	if len(cnts)!=0:  
-		bytesString = ''
-		bytesCount = ','
-		for byte in range(256):
-			bytesString+= str(byte)
-			bytesCount+= str(cnts[byte]) + ','
-		bytesCount = bytesCount[:-1]   # remove the last coma
-		print('0,File-bytes,Entropy,Chi-square,Mean,' 'Monte-Carlo-Pi,Serial-Correlation' + bytesString)
-		print(f'1,{n},{e:.6f},{chi2:.6f},{m:.6f},{mc:.6f},{scc}' + bytesCount)
-	else:
-		print('0,File-bytes,Entropy,Chi-square,Mean,' 'Monte-Carlo-Pi,Serial-Correlation')
-		print(f'1,{n},{e:.6f},{chi2:.6f},{m:.6f},{mc:.6f},{scc}')
-		
+    if withOcurrence:
+        bytesFraction = toFraction(data, cnts)
+        bytesString = ","
+        bytesFractionString = ","
+        for i in range(256):
+            bytesString+=str(i) + ","
+            bytesFractionString+= str(bytesFraction[i]) + ","
+        if withHeader:
+            print('File-type, File-bytes,Entropy,Chi-square,Mean,Monte-Carlo-Pi,Serial-Correlation' + bytesString[:-1])    
+        print(f'{extension},{n},{e:.6f},{chi2:.6f},{m:.6f},{mc:.6f},{scc}' + bytesFractionString[:-1])
+    else:
+        if withHeader:
+            print('File-type, File-bytes,Entropy,Chi-square,Mean,Monte-Carlo-Pi,Serial-Correlation')    
+        print(f'{extension},{n},{e:.6f},{chi2:.6f},{m:.6f},{mc:.6f},{scc}')
 
 
-def textout(data, e, chi2, p, d, scc, mc, cnts = ''):
+def textout(data, e, chi2, p, d, scc, mc, cnts, withOcurrence):
     """
     Print the results in plain text.
 
@@ -103,7 +138,7 @@ def textout(data, e, chi2, p, d, scc, mc, cnts = ''):
         d: Percent distance of p from centre.
         scc: Serial correlation coefficient.
         mc: Monte Carlo approximation of π.
-		cnts: numpy array containing the occurance of each byte.
+       	cnts: numpy array containing the occurance of each byte.
     """
     print(f'- Entropy is {e:.6f} bits per byte.')
     print('- Optimum compression would reduce the size')
@@ -126,20 +161,13 @@ def textout(data, e, chi2, p, d, scc, mc, cnts = ''):
     print(f'- Arithmetic mean value of data bytes is {m:.4f} (random = 127.5).')
     err = 100 * (math.fabs(PI - mc) / PI)
     print(f'- Monte Carlo value for π is {mc:.9f} (error {err:.2f}%).')
-    print(f'- Serial correlation coefficient is {scc} (totally uncorrelated = 0.0).')
-	
-	
-	if len(cnts)!=0:
-		print('\nByte distribution :')
-		for byte in range(256):
-			print(f'{byte},' + str(cnts[byte]))
-			
-		fig, ax = plt.subplots(1,1, figsize=(18,12))
-		ax.bar([i for i in range(len(counts))], counts, width=1.0, edgecolor='black')
-		ax.set_ylabel('Count', size=15)
-		ax.set_xlabel('Byte', size=15)
-		ax.set_title('Byte distribution', size=30)
-		plt.show()
+    print(f'- Serial correlation coefficient is {scc} (totally uncorrelated = 0.0).')  
+    
+    if withOcurrence:
+        bytesFraction = toFraction(data, cnts)
+        print('\nByte distribution :')
+        for byte in range(256):
+            print(f'{byte},' + str(int(cnts[byte])) + ',' + str(bytesFraction[byte]))
 
 
 def readdata(name):
@@ -154,7 +182,9 @@ def readdata(name):
         cnts: numpy array containing the occurance of each byte.
     """
     data = np.fromfile(name, np.ubyte)
-    cnts = np.bincount(data)
+    bincount = np.bincount(data)
+    cnts = np.zeros(256)
+    cnts[:bincount.shape[0]] = bincount
     return data, cnts
 
 
@@ -326,5 +356,49 @@ def monte_carlo(d):
     return montepi
 
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
+def predictType(extension, data, e, chi2, p, d, scc, mc, cnts):
+ 
+    m = data.mean()
+    bytesFraction = toFraction(data, cnts)
+    
+    my_input = np.array([e, chi2, m, mc, scc] + bytesFraction)
+    input_type = extension
+
+    file_path = resource_path(filename)
+    modlist_loaded = pickle.load(open(file_path, 'rb'))
+
+    scaler = modlist_loaded[0]
+    lbencoder = modlist_loaded[1]
+    clf = modlist_loaded[2]
+
+    x_input = scaler.transform(my_input.reshape(1,-1))
+    y_input_pred = clf.predict(x_input)
+    pred = lbencoder.inverse_transform(y_input_pred)[0]
+    probas = clf.predict_proba(x_input)
+    print("\nThe classifier trained with {jpeg, mp3, zip, pdf, png} predicts that there is a " + str(round(probas.max()*100,3)) + "% chance that this is a " + pred + ' file.')
+    if (probas.max()*100<80):
+        print("As the probability is under 80%, we can consider that the classifier does not know this object.")
+        pred = 'unknown'
+
+    if (extension!='unknown'):
+        if (extension==pred):
+            isTrue = True
+        else:
+            isTrue = False
+        print("The extension of the file shows that this is a " + str(extension) + " file, therefore the prediction may be " + str(isTrue))
+
+
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
     main(sys.argv[1:])
