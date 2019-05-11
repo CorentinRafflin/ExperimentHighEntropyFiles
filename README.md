@@ -29,7 +29,8 @@ I decided to focus on files with entropy close to 8 : <b>mp3</b>, <b>jpg</b>, <b
 I tried to obtain at least a thousand files for each type of file. I downloaded most of them from [digitalcorpora](https://digitalcorpora.org/corpora/files) and [cbeditz](https://cbeditz.com/picsart-png/), and took the mp3 files from my personal itunes library.
 For the zip files, I used a simple shell command to zip a thousand files of all kind : 
 ```bash
-a=0; for i in *.*; do new=$(printf "%04d.zip" "$a"); zip "$new" "$i"; let a=a+1; rm "$i"; done ```
+a=0; for i in *.*; do new=$(printf "%04d.zip" "$a"); zip "$new" "$i"; let a=a+1; rm "$i"; done
+```
 
 I did not take care about the size of these files but I made sure that they are a minimum of 5kB. I also made sure to avoid duplicate to not false the results.
 
@@ -64,7 +65,7 @@ Secondly, the option `-c` allows to print the byte occurence counts. It can be u
 Furthermore, the option `-f` allows to plot the histogram of the byte distribution using the `matplotlib` library.  
 Finally, the option `-p` allows to predict the file type (if the input file has to be in the 5 file-type used to build the classifier) and to compare it with the file extension. This option is not adapted to be used with the option `-t`, i.e the prediction will not be adapted to the CSV format.
 
-If you want to run this program with the python version (so to add modification for example), you will need to install some libraries. Some libraries include : numpy, matplotlib, pandas and sklearn.
+If you want to run this program with the python version (so to add modification for example), you will need to install some libraries, otherwise there is a direct executable version for Linux mentioned after. Some libraries include : numpy, matplotlib, pandas and sklearn.
 On ubuntu this can be done by running the following command with one of the following instead of `library` : python3-numpy, python3-matplotlib, python3-pandas
 ```bash 
 sudo apt-get install library
@@ -76,7 +77,7 @@ pip3 install scikit-learn
 ```
 You will also need to have the `scaler_lb_clf.sav` file in the same repository as the python notebook. Indeed the tested file need to be processed with the same scaler and labelEncoder than the one from the training. It is also needed to load the trained classifier.
 
-Otherwise, you can use directly the executable version `entUbuntu` or `entWindows` respectively for Ubuntu and Windows. There were built using the `pyinstaller` program with the command on the corresponding OS : 
+Otherwise, you can use directly the executable version `entLinux` for Linux version. It is slower to execute than the python version but do not require any library. It was built using the `pyinstaller` program on Ubuntu with the command : 
 ```bash
 ./pyinstaller --onefile --add-data="scaler_lb_clf.sav:." ent.py
 ```
