@@ -3,8 +3,7 @@
 <h1>Experiments on high entropy files</h1>
 <hr style="height:2px;border:none;color:#333;background-color:#333;"/>
 
-_Author_
-<div class="alert alert-warning">RAFFLIN Corentin </div>
+_Author_ <div class="alert alert-warning">RAFFLIN Corentin </div>
 
 <b> [F3] Entropy vs chi-square vs ??? </b>
 
@@ -51,11 +50,13 @@ for i in ./files/*/*; do python3 entmodif.py -t -c "$i" >> results.csv; done
 
 <h3> 4) Observation phase </h3>
 
-Using a python notebook, I performed the plotting of the distribution of the test for each file. This observation phase is visible in the notebook `observation.ipynb` or in the corresponding HTML version.
+Using a python notebook, I performed the plotting of the distribution of the test for each file. This observation phase is visible in the notebook `observation.ipynb` or in the corresponding markdown and HTML version. 
 
 <h3> 5) Classifier construction </h3>
 
-Using a python notebook, I build a classifier (after data processing) that is able to find which of the 5 file-type prealably chosen an input file (or more precisely the tests for this input file) correspond to. This model selection and construction is available in the notebook  `classifier.ipynb` or in the corresponding HTML version.
+Using a python notebook, I build a classifier (after data processing) that is able to find which of the 5 file-type prealably chosen an input file (or more precisely the tests for this input file) correspond to. This model selection and construction is available in the notebook  `classifier.ipynb` or in the corresponding markdown and HTML version.
+
+NB : to run the previous notebooks, you can use the Jupyter Notebook included in Anaconda Navigator, you might need to install some libraries.
 
 <h3> 6) Completion of the ENT program </h3> 
 
@@ -65,13 +66,13 @@ Secondly, the option `-c` allows to print the byte occurence counts. It can be u
 Furthermore, the option `-f` allows to plot the histogram of the byte distribution using the `matplotlib` library.  
 Finally, the option `-p` allows to predict the file type (if the input file has to be in the 5 file-type used to build the classifier) and to compare it with the file extension. This option is not adapted to be used with the option `-t`, i.e the prediction will not be adapted to the CSV format.
 
-If you want to run this program with the python version (so to add modification for example), you will need to install some libraries, otherwise there is a direct executable version for Linux mentioned after. Some libraries include : numpy, matplotlib, pandas and sklearn.
-On ubuntu this can be done by running the following command with one of the following instead of `library` : python3-numpy, python3-matplotlib, python3-pandas
+If you want to run this program with the python version (so to add modification for example), you will need to install some libraries, otherwise there is a direct executable version for Linux mentioned after. Some libraries include : numpy, matplotlib and sklearn.
+On ubuntu this can be done by running the following command with one of the following instead of `library` : python3-numpy and python3-matplotlib
 ```bash 
 sudo apt-get install library
 ```
 
-For `sklearn`, use the following to have the good version : 
+But for `sklearn`, it is better to use the following to have the good version : 
 ```bash  
 pip3 install scikit-learn
 ```
@@ -82,6 +83,6 @@ Otherwise, you can use directly the executable version `entLinux` for Linux vers
 ./pyinstaller --onefile --add-data="scaler_lb_clf.sav:." ent.py
 ```
 
-From some tests made, the classifier seems to always predict something with 100% even if the true file type is not in the set of the file type used in the training. It was to be expected but I thought that it could for example predict with a probability of 80% and therefore put a threshold to tell that the classifier does not know the file type.
+The classifier seems to always predict something with 100% even if the true file type is not in the set of the file type used in the training. I first thought that it could for example predict with a probability of 80% and therefore put a threshold to tell that the classifier does not know the file type. Therefore it is better to understand the prediction as "if the file type has to be one in [mp3, jpg, ...], it would be ...".
 
 Attention : there can be a memory error when the program is runned on too large files for your computer. On mine with 8Gb RAM I was not able to analyze a mp4 file of about 500Mb. 
